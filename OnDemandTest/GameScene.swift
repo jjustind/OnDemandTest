@@ -9,37 +9,108 @@
 import SpriteKit
 
 class GameScene: SKScene {
+    
+    private var progressSceneKVOContext = 0
+    
     override func didMoveToView(view: SKView) {
-        /* Setup your scene here */
-        let myLabel = SKLabelNode(fontNamed:"Chalkduster")
-        myLabel.text = "Hello, World!";
-        myLabel.fontSize = 45;
-        myLabel.position = CGPoint(x:CGRectGetMidX(self.frame), y:CGRectGetMidY(self.frame));
+
+        let array = ["DemandTag"]
         
-        self.addChild(myLabel)
+        preloadResourceWithTag(array)
+        
+        loadResourcesWithTag(array)
+        
+
+        
     }
     
-    override func touchesBegan(touches: Set<UITouch>, withEvent event: UIEvent?) {
-       /* Called when a touch begins */
+    func preloadResourceWithTag(tagArray:Array<String>){
+        let tags = NSSet(array: tagArray)
         
-        for touch in touches {
-            let location = touch.locationInNode(self)
+        let resourceRequest:NSBundleResourceRequest = NSBundleResourceRequest(tags: tags as! Set<String>)
+        
+        resourceRequest.beginAccessingResourcesWithCompletionHandler{(error) in
             
-            let sprite = SKSpriteNode(imageNamed:"Spaceship")
-            
-            sprite.xScale = 0.5
-            sprite.yScale = 0.5
-            sprite.position = location
-            
-            let action = SKAction.rotateByAngle(CGFloat(M_PI), duration:1)
-            
-            sprite.runAction(SKAction.repeatActionForever(action))
-            
-            self.addChild(sprite)
+            NSOperationQueue.mainQueue().addOperationWithBlock{
+                // error check type 1
+                guard error == nil else{
+                    print(error!)
+                    return
+                }
+                print("Preloading on-demand resources")
+            }
         }
     }
-   
-    override func update(currentTime: CFTimeInterval) {
-        /* Called before each frame is rendered */
+    
+    func loadResourcesWithTag(tagArray:Array<String>){
+        let tags = NSSet(array: tagArray)
+        let resourceRequest:NSBundleResourceRequest = NSBundleResourceRequest(tags: tags as! Set<String>)
+        
+        resourceRequest.conditionallyBeginAccessingResourcesWithCompletionHandler{(resourcesAvailable: Bool) -> Void in
+            
+            if resourcesAvailable {
+                print("On Demand resources already available")
+                
+                self.displayResources()
+            }else {
+                
+                resourceRequest.progress.addObserver(self, forKeyPath: "fractionCompleted", options: [.New, .Initial], context: &self.progressSceneKVOContext)
+                
+                
+                if let progressLabel:SKLabelNode = self.childNodeWithName("Progress") as? SKLabelNode {
+                    progressLabel.hidden = false
+                }
+                
+                
+                resourceRequest.beginAccessingResourcesWithCompletionHandler{ (err: NSError?) -> Void in
+                    
+                    // error check type 2
+                    if let error = err{
+                        print("Error: \(error)")
+                    }else{
+                        print("On demand resources downloaded, displaying now.")
+                        resourceRequest.removeObserver(self, forKeyPath: "fractionCompleted", context: &self.progressSceneKVOContext)
+                        
+                        self.displayResources()
+                    }
+                }
+            }
+        }
     }
+    
+    func displayResources(){
+        
+        if let progressLabel:SKLabelNode = self.childNodeWithName("Progress") as? SKLabelNode {
+            progressLabel.hidden = true
+        }
+        
+        let image:SKSpriteNode = SKSpriteNode(imageNamed: "tshirt")
+        addChild(image)
+        image.position = (childNodeWithName("Placeholder")?.position)!
+        
+    }
+    
+    
+    override func observeValueForKeyPath(keyPath: String?, ofObject object: AnyObject?, change: [String : AnyObject]?, context: UnsafeMutablePointer<Void>) {
+        
+        // Check for correct KVO Notification
+        if context == &progressSceneKVOContext && keyPath == "fractionCompleted" {
+            // Update progress UI on main queue
+            NSOperationQueue.mainQueue().addOperationWithBlock{
+                
+                print((object as! NSProgress).localizedDescription)
+                
+                if let progressLabel:SKLabelNode = self.childNodeWithName("Progress") as? SKLabelNode {
+                    progressLabel.hidden = false
+                    progressLabel.text = (object as! NSProgress).localizedDescription
+                }
+                
+            }
+        }else{
+            super.observeValueForKeyPath(keyPath, ofObject: object, change: change, context: context)
+        }
+    }
+    
+    
+    
 }
