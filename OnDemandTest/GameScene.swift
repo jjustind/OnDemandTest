@@ -67,6 +67,11 @@ class GameScene: SKScene {
                     // error check type 2
                     if let error = err{
                         print("Error: \(error)")
+                        if let progressLabel:SKLabelNode = self.childNodeWithName("Progress") as? SKLabelNode {
+                            progressLabel.hidden = false
+                            progressLabel.text = "Loading Failed :-("
+                        }
+
                     }else{
                         print("On demand resources downloaded, displaying now.")
                         resourceRequest.removeObserver(self, forKeyPath: "fractionCompleted", context: &self.progressSceneKVOContext)
